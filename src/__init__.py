@@ -1,10 +1,12 @@
-from flask import Flask
+import pandas as pd
+from flask import Flask, request
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from flask_restx import Resource, Api
 from pymongo.collection import Collection
 
 from .model import Stock
+from .stock_ranker import StockRanker
 
 # Configure Flask & Flask-PyMongo:
 app = Flask(__name__)
@@ -33,5 +35,22 @@ class StockFeatures(Resource):
         return {'features': feature_names}
 
 
+class RankStocks(Resource):
+    def post(self):
+        data = request.get_json()
+        selected_features = data.get('selectedFeatures', [])
+
+        cursor = stocks.find()
+        stocks_df = pd.DataFrame(list(cursor))
+
+        ranker = StockRanker(stocks_df, selected_features)
+
+        ranked_stocks_df = ranker.rank_stocks()
+
+        ranked_stocks_json = ranked_stocks_df.to_json(orient='records', default_handler=str)
+        return {"rankedStocks": ranked_stocks_json}
+
+
 api.add_resource(StockList, '/stocks')
 api.add_resource(StockFeatures, '/stock-features')
+api.add_resource(RankStocks, '/rank-stocks')
