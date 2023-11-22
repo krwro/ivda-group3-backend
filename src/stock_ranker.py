@@ -13,7 +13,6 @@ class StockRanker:
         self.stocks_df = self.stocks_df.groupby('symbol')[['score'] + self.selected_features_names].mean()
 
         # Sort by score and add rank
-        print(self.stocks_df)
         ranked_stocks_df = self.stocks_df.sort_values(by='score', ascending=False).reset_index()
         ranked_stocks_df['rank'] = ranked_stocks_df.index + 1
 

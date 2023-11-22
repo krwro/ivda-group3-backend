@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 from flask import Flask, request
 from flask_cors import CORS
@@ -23,7 +25,13 @@ api = Api(app)
 
 class StockList(Resource):
     def get(self):
-        cursor = stocks.find()
+        start_date = request.args.get('start_date', '1900-01-01')
+        end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+
+        start_date = datetime.fromisoformat(start_date)
+        end_date = datetime.fromisoformat(end_date)
+
+        cursor = stocks.find({"date": {"$gte": start_date, "$lte": end_date}})
         return [Stock(**doc).to_json() for doc in cursor]
 
 
@@ -35,12 +43,25 @@ class StockFeatures(Resource):
         return {'features': feature_names}
 
 
+class DateRange(Resource):
+    def get(self):
+        min_date = stocks.find_one(sort=[("date", 1)])["date"]
+        max_date = stocks.find_one(sort=[("date", -1)])["date"]
+
+        return {"min_date": min_date.isoformat(), "max_date": max_date.isoformat()}
+
+
 class RankStocks(Resource):
     def post(self):
         data = request.get_json()
         selected_features = data.get('selectedFeatures', [])
+        start_date = data.get('startDate', '1900-01-01')
+        end_date = data.get('endDate', datetime.now().isoformat())
 
-        cursor = stocks.find()
+        start_date = datetime.fromisoformat(start_date)
+        end_date = datetime.fromisoformat(end_date)
+
+        cursor = stocks.find({"date": {"$gte": start_date, "$lte": end_date}})
         stocks_df = pd.DataFrame(list(cursor))
 
         ranker = StockRanker(stocks_df, selected_features)
@@ -51,6 +72,7 @@ class RankStocks(Resource):
         return {"rankedStocks": ranked_stocks_json}
 
 
+api.add_resource(DateRange, '/date-range')
 api.add_resource(StockList, '/stocks')
 api.add_resource(StockFeatures, '/stock-features')
 api.add_resource(RankStocks, '/rank-stocks')
