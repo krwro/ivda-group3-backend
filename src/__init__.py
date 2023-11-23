@@ -57,6 +57,8 @@ class RankStocks(Resource):
         selected_features = data.get('selectedFeatures', [])
         start_date = data.get('startDate', '1900-01-01')
         end_date = data.get('endDate', datetime.now().isoformat())
+        decay_rate = data.get('decayRate', 0)
+        decay_function = data.get('decayFunction', '')
 
         start_date = datetime.fromisoformat(start_date)
         end_date = datetime.fromisoformat(end_date)
@@ -64,8 +66,7 @@ class RankStocks(Resource):
         cursor = stocks.find({"date": {"$gte": start_date, "$lte": end_date}})
         stocks_df = pd.DataFrame(list(cursor))
 
-        ranker = StockRanker(stocks_df, selected_features)
-
+        ranker = StockRanker(stocks_df, selected_features, decay_rate, decay_function)
         ranked_stocks_df = ranker.rank_stocks()
 
         ranked_stocks_json = ranked_stocks_df.to_json(orient='records', default_handler=str)

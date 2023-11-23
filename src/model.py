@@ -15,7 +15,9 @@ class Stock(BaseModel):
     eps: Optional[float] = None
     roe: Optional[float] = None
     roic: Optional[float] = None
-    debtEquityRatio: Optional[float] = None
+    F0_researchAndDevelopmentExpenses: Optional[float] = None
+    F1_researchAndDevelopmentExpenses: Optional[float] = None
+    F2_researchAndDevelopmentExpenses: Optional[float] = None
     F1_price: Optional[float] = None
     F2_price: Optional[float] = None
     F1_netIncome: Optional[float] = None
