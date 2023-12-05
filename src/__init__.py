@@ -7,6 +7,7 @@ from flask_pymongo import PyMongo
 from flask_restx import Resource, Api
 from pymongo.collection import Collection
 
+from .histogram_processor import HistogramProcessor
 from .model import Stock
 from .stock_ranker import StockRanker
 
@@ -21,6 +22,15 @@ pymongo = PyMongo(app)
 # Get a reference to the stocks collection.
 stocks: Collection = pymongo.db.stocks
 api = Api(app)
+
+
+class DateUtility:
+    @staticmethod
+    def parse_date(date_str, default_value):
+        try:
+            return datetime.fromisoformat(date_str)
+        except ValueError:
+            return default_value
 
 
 class StockList(Resource):
@@ -73,6 +83,39 @@ class RankStocks(Resource):
         return {"rankedStocks": ranked_stocks_json}
 
 
+class FeatureDistribution(Resource):
+    def get(self):
+        # Parameter Parsing
+        start_date = request.args.get('start_date', '1900-01-01')
+        end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+        num_bins = int(request.args.get('num_bins', 10))
+        remove_outliers = request.args.get('remove_outliers', 'false').lower() == 'true'
+        aggregation_method = request.args.get('aggregation_method', 'mean')
+        start_date = DateUtility.parse_date(start_date, datetime(1900, 1, 1))
+        end_date = DateUtility.parse_date(end_date, datetime.now())
+
+        cursor = stocks.find({"date": {"$gte": start_date, "$lte": end_date}})
+        df = pd.DataFrame(list(cursor))
+
+        properties = Stock.schema()['properties']
+        numerical_fields = [field_name for field_name, field_info in properties.items()
+                            if ('anyOf' in field_info and
+                                any(sub_field.get('type') == 'number' for sub_field in field_info['anyOf']) and
+                                'F1' not in field_name and 'F2' not in field_name)]
+
+        processor = HistogramProcessor(df)
+        if remove_outliers:
+            processor.remove_outliers(numerical_fields)
+
+        aggregated_df = processor.aggregate_data(numerical_fields, aggregation_method)
+        numerical_fields.remove('symbol')
+
+        histograms = processor.calculate_histograms(aggregated_df, numerical_fields, num_bins)
+
+        return histograms
+
+
+api.add_resource(FeatureDistribution, '/feature-distribution')
 api.add_resource(DateRange, '/date-range')
 api.add_resource(StockList, '/stocks')
 api.add_resource(StockFeatures, '/stock-features')
