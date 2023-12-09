@@ -85,36 +85,31 @@ class RankStocks(Resource):
 
 class FeatureDistribution(Resource):
     def get(self):
-        # Parameter Parsing
         start_date = request.args.get('start_date', '1900-01-01')
         end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
         num_bins = int(request.args.get('num_bins', 10))
         remove_outliers = request.args.get('remove_outliers', 'false').lower() == 'true'
         aggregation_method = request.args.get('aggregation_method', 'mean')
+        features = request.args.get('numerical_features')
+        numerical_features = features.split(',')
+        print(numerical_features)
+
         start_date = DateUtility.parse_date(start_date, datetime(1900, 1, 1))
         end_date = DateUtility.parse_date(end_date, datetime.now())
 
         cursor = stocks.find({"date": {"$gte": start_date, "$lte": end_date}})
         df = pd.DataFrame(list(cursor))
 
-        properties = Stock.schema()['properties']
-        numerical_fields = [field_name for field_name, field_info in properties.items()
-                            if ('anyOf' in field_info and
-                                any(sub_field.get('type') == 'number' for sub_field in field_info['anyOf']) and
-                                'F1' not in field_name and 'F2' not in field_name)]
-
         processor = HistogramProcessor(df)
         if remove_outliers:
-            processor.remove_outliers(numerical_fields)
+            processor.remove_outliers(numerical_features)
 
-        aggregated_df = processor.aggregate_data(numerical_fields, aggregation_method)
-        numerical_fields.remove('symbol')
+        aggregated_df = processor.aggregate_data(numerical_features, aggregation_method)
+        numerical_features.remove('symbol')
 
-        histograms = processor.calculate_histograms(aggregated_df, numerical_fields, num_bins)
+        histograms = processor.calculate_histograms(aggregated_df, numerical_features, num_bins)
 
         return histograms
-
-
 api.add_resource(FeatureDistribution, '/feature-distribution')
 api.add_resource(DateRange, '/date-range')
 api.add_resource(StockList, '/stocks')
